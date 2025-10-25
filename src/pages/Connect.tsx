@@ -1,4 +1,5 @@
 import { createMemo, Show } from 'solid-js'
+import { A } from '@solidjs/router'
 import { spotifyClientId } from '../state/credentials'
 import { SPOTIFY_SCOPES, beginSpotifyAuth } from '../auth/spotifyAuth'
 import { spotifyTokens } from '../state/auth'
@@ -35,7 +36,7 @@ export default function Connect() {
       </div>
 
       <p style={{ 'margin-top': '1rem' }}>Proceed to pick playlists once both are connected.</p>
-      <a href="/pick"><button disabled={!spotifyReady()}>Continue → Pick</button></a>
+      <A href="/pick"><button disabled={!spotifyReady()}>Continue → Pick</button></A>
     </div>
   )
 }

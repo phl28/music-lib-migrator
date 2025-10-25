@@ -12,7 +12,7 @@ import CallbackGoogle from './pages/CallbackGoogle'
 const root = document.getElementById('root')
 
 render(() => (
-  <Router root={App}>
+  <Router root={App} base={(import.meta as any).env.BASE_URL}>
     <Route path="/" component={Setup} />
     <Route path="/connect" component={Connect} />
     <Route path="/pick" component={Pick} />

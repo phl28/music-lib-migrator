@@ -1,4 +1,5 @@
 import { createMemo } from 'solid-js'
+import { A } from '@solidjs/router'
 import { spotifyClientId, setSpotifyClientId, googleClientId, setGoogleClientId, persistCreds, setPersistCreds, persistIfOpted, currentBaseUrl } from '../state/credentials'
 
 export default function Setup() {
@@ -40,7 +41,7 @@ export default function Setup() {
       </ol>
 
       <p>Next: go to Connect to authorize accounts.</p>
-      <a href="/connect"><button>Continue → Connect</button></a>
+      <A href="/connect"><button>Continue → Connect</button></A>
     </div>
   )
 }

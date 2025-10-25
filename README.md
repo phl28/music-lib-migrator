@@ -55,6 +55,13 @@ Notes:
 - The workflow builds with `--base=/<repo>/` and publishes `404.html` for SPA routing
 - Add the Pages redirect URIs shown above to your Spotify/Google apps
 
+## Troubleshooting
+- 404 on deep links like `/callback/spotify` on Pages: this is normal for SPAs on GitHub Pages. The included `404.html` makes the app load, but you must ensure the app’s router is configured with the repo base path and app links stay under `https://<username>.github.io/<repo>/`.
+- Redirects go to `https://<username>.github.io/` (root) or auth appears not connected: avoid hard‑coded absolute links like `/connect` or `/pick`. Use your router’s base‑aware links/components (e.g., Solid Router `<A href="/...">` and `useNavigate`) so navigation respects the subpath.
+- Spotify: redirect_uri must match exactly. For this repo the Pages URI is:
+  - `https://<your-username>.github.io/<repo>/callback/spotify`
+- Google 403 “Access blocked … app not completed verification”: your OAuth consent screen is in Testing. Either add your account as a Test user (Google Cloud Console → APIs & Services → OAuth consent screen → Test users) or publish the app to Production. Also verify Authorized JavaScript origins include your Pages origin `https://<your-username>.github.io` (and `http://localhost:5173` for local).
+
 ## Security & privacy
 - Client IDs are not secrets; all tokens stay in your browser
 - Optional localStorage persistence is opt‑in via the UI; clear anytime
