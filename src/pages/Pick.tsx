@@ -49,12 +49,17 @@ export default function Pick() {
   const [dryrun, setDryrun] = createSignal<any>(null)
   const [busy, setBusy] = createSignal(false)
   const [statusText, setStatusText] = createSignal('')
+  const [cancelled, setCancelled] = createSignal(false)
+  const [processed, setProcessed] = createSignal<{ done: number; total: number }>({ done: 0, total: 0 })
   
   async function runDryRun() {
     setBusy(true)
+    setCancelled(false)
     try {
       const sel = new Set(Object.entries(selectedIds()).filter(([, v]) => v).map(([k]) => k))
       const src = (playlists() || []).filter((p: any) => sel.has(p.id))
+      const total = src.reduce((sum: number, p: any) => sum + (direction() === 'sp2yt' ? (p.tracks?.total || 0) : (p.contentDetails?.itemCount || 0)), 0)
+      setProcessed({ done: 0, total })
       const groups: any[] = []
       for (let pi = 0; pi < src.length; pi++) {
         const p = src[pi]
@@ -66,27 +71,33 @@ export default function Pick() {
           const items: any[] = []
           for (let ti = 0; ti < norm.length; ti++) {
             const t = norm[ti]
+            if (cancelled()) break
             const m = await matchSpotifyToYouTube(t)
             items.push({ sourceId: t.spotifyId, destId: m.videoId, title: t.title, method: m.method })
             if (ti % 10 === 0) setStatusText(`Analyzing "${pTitle}" • ${ti + 1}/${norm.length}`)
+            setProcessed(pv => ({ done: pv.done + 1, total: pv.total }))
             await sleep(120)
           }
           const matched = items.filter(i => !!i.destId).length
           groups.push({ playlistId: p.id, playlistTitle: p.name, total: items.length, matched, items })
+          if (cancelled()) break
         } else if (direction() === 'yt2sp') {
           const vids = await yt.listPlaylistItems(p.id)
           const norm = vids.map(normalizeYouTubeItem).filter(Boolean) as any[]
           const items: any[] = []
           for (let ti = 0; ti < norm.length; ti++) {
             const t = norm[ti]
+            if (cancelled()) break
             const m = await matchYouTubeToSpotify(t)
             items.push({ sourceId: t.youtubeVideoId, destId: m.spotifyUri, title: t.title, method: m.method })
             if (ti % 10 === 0) setStatusText(`Analyzing "${pTitle}" • ${ti + 1}/${norm.length}`)
+            setProcessed(pv => ({ done: pv.done + 1, total: pv.total }))
             await sleep(100)
           }
           const matched = items.filter(i => !!i.destId).length
           const title = p.snippet?.title || '(untitled)'
           groups.push({ playlistId: p.id, playlistTitle: title, total: items.length, matched, items })
+          if (cancelled()) break
         }
       }
       setDryrun(groups)
@@ -94,7 +105,7 @@ export default function Pick() {
     } catch (e) {
       alert('Dry‑run failed')
     } finally {
-      setStatusText('')
+      setStatusText(cancelled() ? 'Cancelled' : '')
       setBusy(false)
     }
   }
@@ -174,8 +185,14 @@ export default function Pick() {
         </Switch>
       </Show>
       <Show when={busy() || statusText()}>
-        <div style={{ position: 'fixed', right: '1rem', bottom: '1rem', padding: '0.5rem 0.75rem', background: 'white', border: '1px solid #ddd', 'border-radius': '6px', 'box-shadow': '0 2px 8px rgba(0,0,0,0.08)', color: '#333' }}>
+        <div style={{ position: 'fixed', right: '1rem', bottom: '1rem', padding: '0.5rem 0.75rem', background: 'white', border: '1px solid #ddd', 'border-radius': '6px', 'box-shadow': '0 2px 8px rgba(0,0,0,0.08)', color: '#333', display: 'flex', 'align-items': 'center', gap: '0.5rem' }}>
           <span>{statusText() || 'Working…'}</span>
+          <Show when={processed().total > 0}>
+            <span style={{ color: '#666' }}>• {processed().done}/{processed().total}</span>
+          </Show>
+          <Show when={busy() && !cancelled()}>
+            <button onClick={() => setCancelled(true)} style={{ padding: '0.25rem 0.5rem' }}>Cancel</button>
+          </Show>
         </div>
       </Show>
     </div>
