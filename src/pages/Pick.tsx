@@ -1,8 +1,10 @@
 import { A } from '@solidjs/router'
-import { For, Show, createMemo, createResource, createSignal } from 'solid-js'
+import { For, Show, Switch, Match, createMemo, createResource, createSignal } from 'solid-js'
 import { spotifyAccessTokenValid, googleAccessTokenValid } from '../state/auth'
 import * as sp from '../services/spotify'
 import * as yt from '../services/youtube'
+import { normalizeSpotifyItem, normalizeYouTubeItem, matchSpotifyToYouTube, matchYouTubeToSpotify } from '../services/match'
+import { migrateToSpotify, migrateToYouTube } from '../services/migrate'
 
 type Direction = 'sp2yt' | 'yt2sp' | ''
 
@@ -43,6 +45,50 @@ export default function Pick() {
   }
 
   const selectedCount = createMemo(() => Object.values(selectedIds()).filter(Boolean).length)
+  const [step, setStep] = createSignal<'select'|'dryrun'|'migrate'>('select')
+  const [dryrun, setDryrun] = createSignal<any>(null)
+  const [busy, setBusy] = createSignal(false)
+  
+  async function runDryRun() {
+    setBusy(true)
+    try {
+      const sel = new Set(Object.entries(selectedIds()).filter(([, v]) => v).map(([k]) => k))
+      const src = (playlists() || []).filter((p: any) => sel.has(p.id))
+      const groups: any[] = []
+      for (const p of src) {
+        if (direction() === 'sp2yt') {
+          const tracks = await sp.listPlaylistTracks(p.id)
+          const norm = tracks.map(normalizeSpotifyItem).filter(Boolean) as any[]
+          const items: any[] = []
+          for (const t of norm) {
+            const m = await matchSpotifyToYouTube(t)
+            items.push({ sourceId: t.spotifyId, destId: m.videoId, title: t.title, method: m.method })
+            await sleep(150)
+          }
+          const matched = items.filter(i => !!i.destId).length
+          groups.push({ playlistId: p.id, playlistTitle: p.name, total: items.length, matched, items })
+        } else if (direction() === 'yt2sp') {
+          const vids = await yt.listPlaylistItems(p.id)
+          const norm = vids.map(normalizeYouTubeItem).filter(Boolean) as any[]
+          const items: any[] = []
+          for (const t of norm) {
+            const m = await matchYouTubeToSpotify(t)
+            items.push({ sourceId: t.youtubeVideoId, destId: m.spotifyUri, title: t.title, method: m.method })
+            await sleep(120)
+          }
+          const matched = items.filter(i => !!i.destId).length
+          const title = p.snippet?.title || '(untitled)'
+          groups.push({ playlistId: p.id, playlistTitle: title, total: items.length, matched, items })
+        }
+      }
+      setDryrun(groups)
+      setStep('dryrun')
+    } catch (e) {
+      alert('Dry‑run failed')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div class="card" style={{ 'text-align': 'left', 'max-width': '980px', margin: '0 auto' }}>
@@ -77,38 +123,107 @@ export default function Pick() {
           </div>
         </div>
 
-        <Show when={!playlists.error} fallback={<p style={{ color: 'crimson' }}>Error: {String(playlists.error)}</p>}>
-          <Show when={!playlists.loading} fallback={<p>Loading playlists…</p>}>
-            <div style={{ 'margin-top': '0.5rem', display: 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.5rem' }}>
-              <For each={filtered() as any[]}>
-                {(p: any) => {
-                  const id = p.id
-                  const title = p.name || p.snippet?.title || '(untitled)'
-                  const count = p.tracks?.total ?? p.contentDetails?.itemCount ?? ''
-                  const thumb = p.images?.[0]?.url || p.snippet?.thumbnails?.default?.url
-                  const checked = !!selectedIds()[id]
-                  return (
-                    <label style={{ border: '1px solid #ccc', padding: '0.5rem', 'border-radius': '6px', display: 'flex', gap: '0.5rem' }}>
-                      <input type="checkbox" checked={checked} onChange={e => toggleOne(id, e.currentTarget.checked)} />
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <Show when={thumb}><img src={thumb} alt="" width={48} height={48} /></Show>
-                        <div>
-                          <div style={{ 'font-weight': 600 }}>{title}</div>
-                          <div style={{ color: '#666', 'font-size': '0.9em' }}>{count ? `${count} items` : ''}</div>
-                        </div>
-                      </div>
-                    </label>
-                  )
-                }}
-              </For>
-            </div>
-          </Show>
-        </Show>
-
-        <div style={{ 'margin-top': '1rem' }}>
-          <button disabled={selectedCount() === 0} onClick={() => alert('Dry‑run coming next')}>Next: Dry‑run →</button>
-        </div>
+        <Switch>
+          <Match when={step() === 'select'}>
+            <Show when={!playlists.error} fallback={<p style={{ color: 'crimson' }}>Error: {String(playlists.error)}</p>}>
+              <Show when={!playlists.loading} fallback={<p>Loading playlists…</p>}>
+                <div style={{ 'margin-top': '0.5rem', display: 'grid', 'grid-template-columns': 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.5rem' }}>
+                  <For each={filtered() as any[]}>
+                    {(p: any) => {
+                      const id = p.id
+                      const title = p.name || p.snippet?.title || '(untitled)'
+                      const count = p.tracks?.total ?? p.contentDetails?.itemCount ?? ''
+                      const thumb = p.images?.[0]?.url || p.snippet?.thumbnails?.default?.url
+                      const checked = !!selectedIds()[id]
+                      return (
+                        <label style={{ border: '1px solid #ccc', padding: '0.5rem', 'border-radius': '6px', display: 'flex', gap: '0.5rem' }}>
+                          <input type="checkbox" checked={checked} onChange={e => toggleOne(id, e.currentTarget.checked)} />
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <Show when={thumb}><img src={thumb} alt="" width={48} height={48} /></Show>
+                            <div>
+                              <div style={{ 'font-weight': 600 }}>{title}</div>
+                              <div style={{ color: '#666', 'font-size': '0.9em' }}>{count ? `${count} items` : ''}</div>
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    }}
+                  </For>
+                </div>
+                <div style={{ 'margin-top': '1rem' }}>
+                  <button disabled={selectedCount() === 0 || busy()} onClick={runDryRun}>Next: Dry‑run →</button>
+                </div>
+              </Show>
+            </Show>
+          </Match>
+          <Match when={step() === 'dryrun'}>
+            <DryRunView direction={direction()} result={dryrun()} onBack={() => setStep('select')} onProceed={() => setStep('migrate')} />
+          </Match>
+          <Match when={step() === 'migrate'}>
+            <MigrateView direction={direction()} result={dryrun()} onBack={() => setStep('dryrun')} />
+          </Match>
+        </Switch>
       </Show>
+    </div>
+  )
+}
+
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
+
+function DryRunView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onBack: () => void; onProceed: () => void }) {
+  if (!props.result) return <div>Preparing dry‑run…</div>
+  const per = props.result as any[]
+  const totals = per.reduce((acc: any, r: any) => { acc.total += r.total; acc.matched += r.matched; return acc }, { total: 0, matched: 0 })
+  return (
+    <div style={{ 'margin-top': '1rem' }}>
+      <h4>Dry‑run results</h4>
+      <div>Matched {totals.matched} / {totals.total}</div>
+      <div style={{ 'margin-top': '0.5rem' }}>
+        <For each={per}>
+          {(r: any) => (
+            <div style={{ border: '1px solid #ccc', padding: '0.5rem', 'border-radius': '6px', 'margin-bottom': '0.5rem' }}>
+              <div style={{ 'font-weight': 600 }}>{r.playlistTitle} — {r.matched}/{r.total} matched</div>
+            </div>
+          )}
+        </For>
+      </div>
+      <div style={{ 'margin-top': '0.5rem', display: 'flex', gap: '0.5rem' }}>
+        <button onClick={props.onBack}>← Back</button>
+        <button onClick={props.onProceed} disabled={totals.matched === 0}>Start migration →</button>
+      </div>
+    </div>
+  )
+}
+
+function MigrateView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onBack: () => void }) {
+  const [progress, setProgress] = createSignal({ current: 0, total: 0 })
+  const [message, setMessage] = createSignal('')
+  const [done, setDone] = createSignal(false)
+  ;(async () => {
+    if (done()) return
+    const groups = props.result as any[]
+    setProgress({ current: 0, total: groups.length })
+    for (const g of groups) {
+      setMessage(`Migrating: ${g.playlistTitle}`)
+      if (props.direction === 'sp2yt') {
+        await migrateToYouTube(g.playlistTitle, '', g.items.filter((i: any) => i.destId).map((i: any) => i.destId))
+      } else if (props.direction === 'yt2sp') {
+        await migrateToSpotify(g.playlistTitle, '', g.items.filter((i: any) => i.destId).map((i: any) => i.destId))
+      }
+      setProgress(p => ({ current: p.current + 1, total: p.total }))
+      await sleep(200)
+    }
+    setMessage('Done')
+    setDone(true)
+  })()
+  return (
+    <div style={{ 'margin-top': '1rem' }}>
+      <h4>Migration</h4>
+      <div>{message()}</div>
+      <div>{progress().current} / {progress().total}</div>
+      <div style={{ 'margin-top': '0.5rem' }}>
+        <button onClick={props.onBack} disabled={!done()}>← Back</button>
+      </div>
     </div>
   )
 }
