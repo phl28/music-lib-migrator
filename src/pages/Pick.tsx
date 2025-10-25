@@ -48,6 +48,7 @@ export default function Pick() {
   const [step, setStep] = createSignal<'select'|'dryrun'|'migrate'>('select')
   const [dryrun, setDryrun] = createSignal<any>(null)
   const [busy, setBusy] = createSignal(false)
+  const [statusText, setStatusText] = createSignal('')
   
   async function runDryRun() {
     setBusy(true)
@@ -55,15 +56,20 @@ export default function Pick() {
       const sel = new Set(Object.entries(selectedIds()).filter(([, v]) => v).map(([k]) => k))
       const src = (playlists() || []).filter((p: any) => sel.has(p.id))
       const groups: any[] = []
-      for (const p of src) {
+      for (let pi = 0; pi < src.length; pi++) {
+        const p = src[pi]
+        const pTitle = p.name || p.snippet?.title || '(untitled)'
+        setStatusText(`Analyzing "${pTitle}" (${pi + 1}/${src.length})…`)
         if (direction() === 'sp2yt') {
           const tracks = await sp.listPlaylistTracks(p.id)
           const norm = tracks.map(normalizeSpotifyItem).filter(Boolean) as any[]
           const items: any[] = []
-          for (const t of norm) {
+          for (let ti = 0; ti < norm.length; ti++) {
+            const t = norm[ti]
             const m = await matchSpotifyToYouTube(t)
             items.push({ sourceId: t.spotifyId, destId: m.videoId, title: t.title, method: m.method })
-            await sleep(150)
+            if (ti % 10 === 0) setStatusText(`Analyzing "${pTitle}" • ${ti + 1}/${norm.length}`)
+            await sleep(120)
           }
           const matched = items.filter(i => !!i.destId).length
           groups.push({ playlistId: p.id, playlistTitle: p.name, total: items.length, matched, items })
@@ -71,10 +77,12 @@ export default function Pick() {
           const vids = await yt.listPlaylistItems(p.id)
           const norm = vids.map(normalizeYouTubeItem).filter(Boolean) as any[]
           const items: any[] = []
-          for (const t of norm) {
+          for (let ti = 0; ti < norm.length; ti++) {
+            const t = norm[ti]
             const m = await matchYouTubeToSpotify(t)
             items.push({ sourceId: t.youtubeVideoId, destId: m.spotifyUri, title: t.title, method: m.method })
-            await sleep(120)
+            if (ti % 10 === 0) setStatusText(`Analyzing "${pTitle}" • ${ti + 1}/${norm.length}`)
+            await sleep(100)
           }
           const matched = items.filter(i => !!i.destId).length
           const title = p.snippet?.title || '(untitled)'
@@ -86,6 +94,7 @@ export default function Pick() {
     } catch (e) {
       alert('Dry‑run failed')
     } finally {
+      setStatusText('')
       setBusy(false)
     }
   }
@@ -164,6 +173,11 @@ export default function Pick() {
           </Match>
         </Switch>
       </Show>
+      <Show when={busy() || statusText()}>
+        <div style={{ position: 'fixed', right: '1rem', bottom: '1rem', padding: '0.5rem 0.75rem', background: 'white', border: '1px solid #ddd', 'border-radius': '6px', 'box-shadow': '0 2px 8px rgba(0,0,0,0.08)', color: '#333' }}>
+          <span>{statusText() || 'Working…'}</span>
+        </div>
+      </Show>
     </div>
   )
 }
@@ -183,6 +197,42 @@ function DryRunView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onB
           {(r: any) => (
             <div style={{ border: '1px solid #ccc', padding: '0.5rem', 'border-radius': '6px', 'margin-bottom': '0.5rem' }}>
               <div style={{ 'font-weight': 600 }}>{r.playlistTitle} — {r.matched}/{r.total} matched</div>
+              <details style={{ 'margin-top': '0.5rem' }}>
+                <summary>Show details</summary>
+                <table style={{ width: '100%', 'margin-top': '0.5rem', 'border-collapse': 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ 'text-align': 'left', 'border-bottom': '1px solid #eee', padding: '4px' }}>Source</th>
+                      <th style={{ 'text-align': 'left', 'border-bottom': '1px solid #eee', padding: '4px' }}></th>
+                      <th style={{ 'text-align': 'left', 'border-bottom': '1px solid #eee', padding: '4px' }}>Matched</th>
+                      <th style={{ 'text-align': 'left', 'border-bottom': '1px solid #eee', padding: '4px' }}>Method</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <For each={r.items}>
+                      {(it: any) => {
+                        const srcIsYT = props.direction === 'yt2sp'
+                        const srcHref = srcIsYT ? `https://www.youtube.com/watch?v=${it.sourceId}` : `https://open.spotify.com/track/${it.sourceId}`
+                        const destHref = props.direction === 'sp2yt'
+                          ? (it.destId ? `https://www.youtube.com/watch?v=${it.destId}` : '')
+                          : (it.destId ? `https://open.spotify.com/track/${(it.destId as string).split(':').pop()}` : '')
+                        return (
+                          <tr>
+                            <td style={{ padding: '4px' }}>
+                              <a href={srcHref} target="_blank" rel="noreferrer">{it.title}</a>
+                            </td>
+                            <td style={{ padding: '4px' }}>→</td>
+                            <td style={{ padding: '4px', color: it.destId ? '#222' : 'crimson' }}>
+                              {it.destId ? <a href={destHref} target="_blank" rel="noreferrer">{it.destId}</a> : 'No match'}
+                            </td>
+                            <td style={{ padding: '4px' }}>{it.method}</td>
+                          </tr>
+                        )
+                      }}
+                    </For>
+                  </tbody>
+                </table>
+              </details>
             </div>
           )}
         </For>
