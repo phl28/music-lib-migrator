@@ -185,13 +185,20 @@ export default function Pick() {
         </Switch>
       </Show>
       <Show when={busy() || statusText()}>
-        <div style={{ position: 'fixed', right: '1rem', bottom: '1rem', padding: '0.5rem 0.75rem', background: 'white', border: '1px solid #ddd', 'border-radius': '6px', 'box-shadow': '0 2px 8px rgba(0,0,0,0.08)', color: '#333', display: 'flex', 'align-items': 'center', gap: '0.5rem' }}>
-          <span>{statusText() || 'Working…'}</span>
+        <div style={{ position: 'fixed', right: '1rem', bottom: '1rem', padding: '0.65rem 0.75rem', background: 'white', border: '1px solid #ddd', 'border-radius': '6px', 'box-shadow': '0 2px 8px rgba(0,0,0,0.08)', color: '#333', display: 'grid', gap: '0.4rem', 'min-width': '240px' }}>
+          <div style={{ display: 'flex', 'align-items': 'center', gap: '0.5rem', 'justify-content': 'space-between' }}>
+            <span>{statusText() || 'Working…'}</span>
+            <Show when={busy() && !cancelled()}>
+              <button onClick={() => setCancelled(true)} style={{ padding: '0.25rem 0.5rem' }}>Cancel</button>
+            </Show>
+          </div>
           <Show when={processed().total > 0}>
-            <span style={{ color: '#666' }}>• {processed().done}/{processed().total}</span>
-          </Show>
-          <Show when={busy() && !cancelled()}>
-            <button onClick={() => setCancelled(true)} style={{ padding: '0.25rem 0.5rem' }}>Cancel</button>
+            <>
+              <div style={{ width: '100%', height: '8px', background: '#eee', 'border-radius': '6px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: '#3b82f6', width: `${Math.min(100, Math.floor((processed().done / Math.max(1, processed().total)) * 100))}%`, transition: 'width 0.2s ease' }} />
+              </div>
+              <div style={{ color: '#666', 'font-size': '0.85em' }}>{processed().done}/{processed().total}</div>
+            </>
           </Show>
         </div>
       </Show>
