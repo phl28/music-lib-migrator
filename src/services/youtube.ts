@@ -10,14 +10,14 @@ async function authed(url: string) {
 }
 
 export async function listMyPlaylists() {
-  let url = `${API}/playlists?part=id,snippet&mine=true&maxResults=50`
+  let url = `${API}/playlists?part=id,snippet,contentDetails&mine=true&maxResults=50`
   const items: any[] = []
   while (url) {
     const res = await authed(url)
     if (!res.ok) throw new Error('YouTube playlists fetch failed')
     const json = await res.json()
     items.push(...json.items)
-    url = json.nextPageToken ? `${API}/playlists?part=id,snippet&mine=true&maxResults=50&pageToken=${json.nextPageToken}` : ''
+    url = json.nextPageToken ? `${API}/playlists?part=id,snippet,contentDetails&mine=true&maxResults=50&pageToken=${json.nextPageToken}` : ''
   }
   return items
 }
