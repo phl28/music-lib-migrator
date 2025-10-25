@@ -294,7 +294,12 @@ function MigrateView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; on
     <div style={{ 'margin-top': '1rem' }}>
       <h4>Migration</h4>
       <div>{message()}</div>
-      <div>{progress().current} / {progress().total}</div>
+      <div style={{ 'margin-top': '0.25rem' }}>
+        <div style={{ width: '100%', height: '10px', background: '#eee', 'border-radius': '6px', overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#22c55e', width: `${Math.min(100, Math.floor((progress().current / Math.max(1, progress().total)) * 100))}%`, transition: 'width 0.2s ease' }} />
+        </div>
+        <div style={{ color: '#666', 'font-size': '0.9em', 'margin-top': '0.25rem' }}>{progress().current} / {progress().total}</div>
+      </div>
       <div style={{ 'margin-top': '0.5rem' }}>
         <button onClick={props.onBack} disabled={!done()}>← Back</button>
       </div>
