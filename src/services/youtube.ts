@@ -80,3 +80,15 @@ export async function insertPlaylistItems(playlistId: string, videoIds: string[]
     if (!res.ok) throw new Error('YouTube insert item failed')
   }
 }
+
+export async function findPlaylistByTitle(title: string) {
+  const all = await listMyPlaylists()
+  const target = title.trim().toLowerCase()
+  return all.find((p: any) => (p.snippet?.title || '').trim().toLowerCase() === target) || null
+}
+
+export async function listPlaylistVideoIds(playlistId: string) {
+  const items = await listPlaylistItems(playlistId)
+  const ids = items.map((it: any) => it.contentDetails?.videoId).filter(Boolean)
+  return ids as string[]
+}

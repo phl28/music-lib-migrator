@@ -97,3 +97,15 @@ export async function searchTrackByQuery(q: string) {
   const json = await res.json()
   return json.tracks?.items?.[0] || null
 }
+
+export async function findPlaylistByName(name: string) {
+  const all = await listPlaylists()
+  const target = name.trim().toLowerCase()
+  return all.find((p: any) => (p.name || '').trim().toLowerCase() === target) || null
+}
+
+export async function listPlaylistTrackUris(playlistId: string) {
+  const items = await listPlaylistTracks(playlistId)
+  const uris = items.map((it: any) => it.track?.uri).filter(Boolean)
+  return uris as string[]
+}

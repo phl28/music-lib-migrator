@@ -51,6 +51,11 @@ export default function Pick() {
   const [statusText, setStatusText] = createSignal('')
   const [cancelled, setCancelled] = createSignal(false)
   const [processed, setProcessed] = createSignal<{ done: number; total: number }>({ done: 0, total: 0 })
+  // Migration options
+  const [mode, setMode] = createSignal<'create'|'mergeByName'>('create')
+  const [allowCreateIfMissing, setAllowCreateIfMissing] = createSignal(true)
+  const [dedupeInput, setDedupeInput] = createSignal(true)
+  const [dedupeExisting, setDedupeExisting] = createSignal(true)
   
   async function runDryRun() {
     setBusy(true)
@@ -177,10 +182,33 @@ export default function Pick() {
             </Show>
           </Match>
           <Match when={step() === 'dryrun'}>
-            <DryRunView direction={direction()} result={dryrun()} onBack={() => setStep('select')} onProceed={() => setStep('migrate')} />
+            <DryRunView
+              direction={direction()}
+              result={dryrun()}
+              onBack={() => setStep('select')}
+              onProceed={() => setStep('migrate')}
+              mode={mode}
+              setMode={setMode}
+              allowCreateIfMissing={allowCreateIfMissing}
+              setAllowCreateIfMissing={setAllowCreateIfMissing}
+              dedupeInput={dedupeInput}
+              setDedupeInput={setDedupeInput}
+              dedupeExisting={dedupeExisting}
+              setDedupeExisting={setDedupeExisting}
+            />
           </Match>
           <Match when={step() === 'migrate'}>
-            <MigrateView direction={direction()} result={dryrun()} onBack={() => setStep('dryrun')} />
+            <MigrateView
+              direction={direction()}
+              result={dryrun()}
+              onBack={() => setStep('dryrun')}
+              options={{
+                mode: mode(),
+                allowCreateIfMissing: allowCreateIfMissing(),
+                dedupeInput: dedupeInput(),
+                dedupeExisting: dedupeExisting(),
+              }}
+            />
           </Match>
         </Switch>
       </Show>
@@ -208,7 +236,20 @@ export default function Pick() {
 
 async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)) }
 
-function DryRunView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onBack: () => void; onProceed: () => void }) {
+function DryRunView(props: {
+  direction: 'sp2yt' | 'yt2sp' | ''
+  result: any
+  onBack: () => void
+  onProceed: () => void
+  mode: () => 'create'|'mergeByName'
+  setMode: (m: 'create'|'mergeByName') => void
+  allowCreateIfMissing: () => boolean
+  setAllowCreateIfMissing: (v: boolean) => void
+  dedupeInput: () => boolean
+  setDedupeInput: (v: boolean) => void
+  dedupeExisting: () => boolean
+  setDedupeExisting: (v: boolean) => void
+}) {
   if (!props.result) return <div>Preparing dry‑run…</div>
   const per = props.result as any[]
   const totals = per.reduce((acc: any, r: any) => { acc.total += r.total; acc.matched += r.matched; return acc }, { total: 0, matched: 0 })
@@ -216,6 +257,34 @@ function DryRunView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onB
     <div style={{ 'margin-top': '1rem' }}>
       <h4>Dry‑run results</h4>
       <div>Matched {totals.matched} / {totals.total}</div>
+      <div style={{ 'margin-top': '0.5rem', border: '1px solid #ddd', padding: '0.5rem', 'border-radius': '6px' }}>
+        <div style={{ 'font-weight': 600, 'margin-bottom': '0.25rem' }}>Destination</div>
+        <label style={{ display: 'inline-flex', 'align-items': 'center', gap: '0.35rem', 'margin-right': '1rem' }}>
+          <input type="radio" name="destMode" checked={props.mode() === 'create'} onChange={() => props.setMode('create')} />
+          Create new playlist(s)
+        </label>
+        <label style={{ display: 'inline-flex', 'align-items': 'center', gap: '0.35rem' }}>
+          <input type="radio" name="destMode" checked={props.mode() === 'mergeByName'} onChange={() => props.setMode('mergeByName')} />
+          Merge into existing by exact title
+        </label>
+        <div style={{ 'margin-top': '0.35rem' }}>
+          <label style={{ display: 'inline-flex', 'align-items': 'center', gap: '0.35rem' }}>
+            <input type="checkbox" checked={props.allowCreateIfMissing()} onChange={e => props.setAllowCreateIfMissing(e.currentTarget.checked)} />
+            Allow create if missing (when merging by name)
+          </label>
+        </div>
+        <div style={{ 'margin-top': '0.5rem', 'font-weight': 600 }}>Options</div>
+        <div style={{ display: 'flex', 'flex-wrap': 'wrap', gap: '1rem', 'margin-top': '0.25rem' }}>
+          <label style={{ display: 'inline-flex', 'align-items': 'center', gap: '0.35rem' }}>
+            <input type="checkbox" checked={props.dedupeInput()} onChange={e => props.setDedupeInput(e.currentTarget.checked)} />
+            Skip duplicates in this migration
+          </label>
+          <label style={{ display: 'inline-flex', 'align-items': 'center', gap: '0.35rem' }}>
+            <input type="checkbox" checked={props.dedupeExisting()} onChange={e => props.setDedupeExisting(e.currentTarget.checked)} />
+            Skip items already in destination
+          </label>
+        </div>
+      </div>
       <div style={{ 'margin-top': '0.5rem' }}>
         <For each={per}>
           {(r: any) => (
@@ -269,7 +338,7 @@ function DryRunView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onB
   )
 }
 
-function MigrateView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onBack: () => void }) {
+function MigrateView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; onBack: () => void; options: any }) {
   const [progress, setProgress] = createSignal({ current: 0, total: 0 })
   const [message, setMessage] = createSignal('')
   const [done, setDone] = createSignal(false)
@@ -280,9 +349,29 @@ function MigrateView(props: { direction: 'sp2yt' | 'yt2sp' | ''; result: any; on
     for (const g of groups) {
       setMessage(`Migrating: ${g.playlistTitle}`)
       if (props.direction === 'sp2yt') {
-        await migrateToYouTube(g.playlistTitle, '', g.items.filter((i: any) => i.destId).map((i: any) => i.destId))
+        await migrateToYouTube(
+          g.playlistTitle,
+          '',
+          g.items.filter((i: any) => i.destId).map((i: any) => i.destId),
+          {
+            mode: props.options.mode,
+            allowCreateIfMissing: props.options.allowCreateIfMissing,
+            dedupeInput: props.options.dedupeInput,
+            dedupeExisting: props.options.dedupeExisting,
+          }
+        )
       } else if (props.direction === 'yt2sp') {
-        await migrateToSpotify(g.playlistTitle, '', g.items.filter((i: any) => i.destId).map((i: any) => i.destId))
+        await migrateToSpotify(
+          g.playlistTitle,
+          '',
+          g.items.filter((i: any) => i.destId).map((i: any) => i.destId),
+          {
+            mode: props.options.mode,
+            allowCreateIfMissing: props.options.allowCreateIfMissing,
+            dedupeInput: props.options.dedupeInput,
+            dedupeExisting: props.options.dedupeExisting,
+          }
+        )
       }
       setProgress(p => ({ current: p.current + 1, total: p.total }))
       await sleep(200)
