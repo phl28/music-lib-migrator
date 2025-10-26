@@ -73,4 +73,4 @@ Notes:
 - Batched migration with retries and a final CSV/JSON report
 
 ## License
-MIT (LICENSE file to be added)
+MIT
