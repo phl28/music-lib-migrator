@@ -1,4 +1,4 @@
-# Music Library Migrator
+# Track Transit
 
 Client‑only SolidJS web app to migrate playlists between Spotify and YouTube (as seen in YouTube Music). BYO credentials: users paste their own Spotify Client ID and Google OAuth Client ID; no backend, no secrets stored server‑side.
 
