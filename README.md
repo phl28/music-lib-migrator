@@ -1,11 +1,13 @@
-# Track Transit
+# TrackTransit
 
 Client‑only SolidJS web app to migrate playlists between Spotify and YouTube (as seen in YouTube Music). BYO credentials: users paste their own Spotify Client ID and Google OAuth Client ID; no backend, no secrets stored server‑side.
 
 ## Features
 - Spotify → YouTube and YouTube → Spotify (playlists; liked songs via a generated playlist)
 - In‑browser OAuth: Spotify PKCE; Google Identity Services Token Client
-- Dry‑run matching preview (planned), per‑item report (planned)
+- Dry‑run matching preview with per‑item details
+- Migration options: create new or merge by exact title; skip duplicates in input; skip items already in destination
+- Progress indicators with cancellable processing
 - Deployed to GitHub Pages via Actions
 
 ## Limitations
@@ -52,11 +54,11 @@ This repo includes a Pages workflow. Steps:
 3) Visit `https://<your-username>.github.io/<repo>/`
 
 Notes:
-- The workflow builds with `--base=/<repo>/` and publishes `404.html` for SPA routing
+- The workflow builds with `--base=/<repo>/` and generates `404.html` for SPA routing (CI runs `cp dist/index.html dist/404.html`)
 - Add the Pages redirect URIs shown above to your Spotify/Google apps
 
 ## Troubleshooting
-- 404 on deep links like `/callback/spotify` on Pages: this is normal for SPAs on GitHub Pages. The included `404.html` makes the app load, but you must ensure the app’s router is configured with the repo base path and app links stay under `https://<username>.github.io/<repo>/`.
+- 404 on deep links like `/callback/spotify` on Pages: this is normal for SPAs on GitHub Pages. The workflow‑generated `404.html` makes the app load, but you must ensure the app’s router is configured with the repo base path and app links stay under `https://<username>.github.io/<repo>/`.
 - Redirects go to `https://<username>.github.io/` (root) or auth appears not connected: avoid hard‑coded absolute links like `/connect` or `/pick`. Use your router’s base‑aware links/components (e.g., Solid Router `<A href="/...">` and `useNavigate`) so navigation respects the subpath.
 - Spotify: redirect_uri must match exactly. For this repo the Pages URI is:
   - `https://<your-username>.github.io/<repo>/callback/spotify`
@@ -67,9 +69,8 @@ Notes:
 - Optional localStorage persistence is opt‑in via the UI; clear anytime
 
 ## Roadmap
-- Playlist selection UI and dry‑run coverage report
-- Matching engine (ISRC preferred; title/artist/duration fallback)
+- Improve matching accuracy (ISRC preferred; title/artist/duration fallback)
 - Batched migration with retries and a final CSV/JSON report
 
 ## License
-MIT
+MIT (LICENSE file to be added)
